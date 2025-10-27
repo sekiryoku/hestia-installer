@@ -16,15 +16,16 @@ PHP_VERSION=${PHP_VERSION:-"8.4"}
 
 disable_auto_updates() {
   echo "🧯 Отключаю автообновления..."
-  systemctl stop unattended-upgrades apt-daily apt-daily-upgrade >/dev/null 2>&1 || true
-  systemctl disable unattended-upgrades apt-daily apt-daily-upgrade >/dev/null 2>&1 || true
+  systemctl stop --no-block unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
+  systemctl disable unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
+  echo "⏸️  Автообновления остановлены/отключены, проверяю занятость APT..."
   echo "✅ Автообновления отключены."
 }
 
 enable_auto_updates() {
   echo "🔄 Включаю автообновления обратно..."
-  systemctl enable unattended-upgrades apt-daily apt-daily-upgrade >/dev/null 2>&1 || true
-  systemctl start unattended-upgrades apt-daily apt-daily-upgrade >/dev/null 2>&1 || true
+  systemctl enable unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
+  systemctl start --no-block unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
   echo "✅ Автообновления снова включены."
 }
 
@@ -37,7 +38,8 @@ wait_for_apt() {
   while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
         fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
         pgrep -x "apt" >/dev/null || \
-        pgrep -x "apt-get" >/devnull || \
+        pgrep -x "apt-get" >/dev/null || \
+        pgrep -f "apt.systemd.daily" >/dev/null || \
         pgrep -x "unattended-upgrade" >/dev/null; do
     if [ "$elapsed" -ge "$timeout" ]; then
       echo "❌ Время ожидания apt истекло (10 минут). Прерываю."
