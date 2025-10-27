@@ -16,16 +16,29 @@ PHP_VERSION=${PHP_VERSION:-"8.4"}
 
 disable_auto_updates() {
   echo "🧯 Отключаю автообновления..."
-  systemctl stop --no-block unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
-  systemctl disable unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
-  echo "⏸️  Автообновления остановлены/отключены, проверяю занятость APT..."
+  # Останавливаем таймеры и сервисы неблокирующе
+  systemctl stop --no-block apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
+  systemctl stop --no-block apt-daily.service apt-daily-upgrade.service unattended-upgrades.service >/dev/null 2>&1 || true
+
+  # Маскируем, чтобы они не перезапускались
+  systemctl mask apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
+  systemctl disable unattended-upgrades.service >/dev/null 2>&1 || true
+
+  # Если зависли процессы — принудительно завершаем
+  systemctl kill -s SIGKILL --kill-who=all apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
+  pkill -f "apt.systemd.daily" >/dev/null 2>&1 || true
+
+  echo "⏸️  Автообновления остановлены/замаскированы, проверяю занятость APT..."
   echo "✅ Автообновления отключены."
 }
 
 enable_auto_updates() {
   echo "🔄 Включаю автообновления обратно..."
-  systemctl enable unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
+  # Размаскируем и включаем обратно
+  systemctl unmask apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
+  systemctl enable unattended-upgrades.service apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
   systemctl start --no-block unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
+  systemctl start --no-block apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
   echo "✅ Автообновления снова включены."
 }
 
