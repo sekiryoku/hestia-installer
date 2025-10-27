@@ -73,6 +73,38 @@ ensure_wget() {
   fi
 }
 
+ensure_hostname() {
+  echo "🔎 Проверяю hostname: $HOSTNAME"
+  # Базовая проверка формата FQDN (латиница/цифры/дефисы, несколько сегментов)
+  if ! [[ "$HOSTNAME" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]]; then
+    echo "❌ Некорректный hostname. Укажите FQDN (пример: panel.example.com)."
+    echo "ℹ️  Можно передать переменную: HOSTNAME=panel.mydomain.com"
+    exit 1
+  fi
+
+  # Устанавливаем системный hostname
+  if command -v hostnamectl >/dev/null 2>&1; then
+    hostnamectl set-hostname "$HOSTNAME" || true
+  else
+    echo "$HOSTNAME" > /etc/hostname || true
+  fi
+
+  # Обеспечиваем локальное резолвинг через /etc/hosts, если DNS ещё не настроен
+  local ip short
+  ip=$(hostname -I | awk '{print $1}')
+  short=${HOSTNAME%%.*}
+  if ! grep -qE "\s$HOSTNAME(\s|$)" /etc/hosts; then
+    echo "$ip $HOSTNAME $short" >> /etc/hosts
+  fi
+
+  # Проверяем доступность резолвинга
+  if getent hosts "$HOSTNAME" >/dev/null 2>&1; then
+    echo "✅ Hostname резолвится."
+  else
+    echo "⚠️  DNS/hosts для $HOSTNAME не найден. Добавил запись в /etc/hosts, продолжаю установку."
+  fi
+}
+
 # На любой выход стараемся вернуть автообновления
 trap 'enable_auto_updates' EXIT
 
@@ -83,6 +115,7 @@ trap 'enable_auto_updates' EXIT
 disable_auto_updates
 wait_for_apt
 ensure_wget
+ensure_hostname
 
 echo "⬇️  Скачиваю установщик HestiaCP..."
 wget -q https://raw.githubusercontent.com/hestiacp/hestiacp/release/install/hst-install.sh -O hst-install.sh
